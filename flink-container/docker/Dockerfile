@@ -25,6 +25,7 @@ RUN apk add --no-cache bash snappy libc6-compat
 ENV FLINK_INSTALL_PATH=/opt
 ENV FLINK_HOME $FLINK_INSTALL_PATH/flink
 ENV FLINK_LIB_DIR $FLINK_HOME/lib
+ENV FLINK_PLUGINS_DIR $FLINK_HOME/plugins
 ENV PATH $PATH:$FLINK_HOME/bin
 
 # flink-dist can point to a directory or a tarball on the local system
