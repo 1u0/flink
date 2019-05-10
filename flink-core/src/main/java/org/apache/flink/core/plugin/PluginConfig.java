@@ -20,6 +20,9 @@ package org.apache.flink.core.plugin;
 
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.CoreOptions;
+
+import javax.annotation.Nullable;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -31,28 +34,37 @@ import java.util.Optional;
 public class PluginConfig {
 	private final Optional<Path> pluginsPath;
 
-	private PluginConfig() {
-		this.pluginsPath = Optional.empty();
-	}
+	private final String[] alwaysParentFirstPatterns;
 
-	private PluginConfig(Path pluginsPath) {
-		this.pluginsPath = Optional.of(pluginsPath);
+	private PluginConfig(@Nullable Path pluginsPath, String[] alwaysParentFirstPatterns) {
+		this.pluginsPath = Optional.ofNullable(pluginsPath);
+		this.alwaysParentFirstPatterns = alwaysParentFirstPatterns;
 	}
 
 	public Optional<Path> getPluginsPath() {
 		return pluginsPath;
 	}
 
+	public String[] getAlwaysParentFirstPatterns() {
+		return alwaysParentFirstPatterns;
+	}
+
 	public static PluginConfig fromConfiguration(Configuration configuration) {
+		return new PluginConfig(
+			getPluginsDirPath(configuration),
+			CoreOptions.getParentFirstLoaderPatterns(configuration));
+	}
+
+	@Nullable
+	private static Path getPluginsDirPath(Configuration configuration) {
 		String pluginsDir = configuration.getString(ConfigConstants.ENV_FLINK_PLUGINS_DIR, null);
 		if (pluginsDir == null) {
-			return new PluginConfig();
+			return null;
 		}
-
 		File pluginsDirFile = new File(pluginsDir);
 		if (!pluginsDirFile.isDirectory()) {
-			return new PluginConfig();
+			return null;
 		}
-		return new PluginConfig(pluginsDirFile.toPath());
+		return pluginsDirFile.toPath();
 	}
 }
