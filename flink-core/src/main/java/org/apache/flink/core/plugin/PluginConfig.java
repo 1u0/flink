@@ -20,7 +20,6 @@ package org.apache.flink.core.plugin;
 
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.configuration.IllegalConfigurationException;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -52,7 +51,7 @@ public class PluginConfig {
 
 		File pluginsDirFile = new File(pluginsDir);
 		if (!pluginsDirFile.isDirectory()) {
-			throw new IllegalConfigurationException("Couldn't find the plugins directory (" + pluginsDir + ")");
+			return new PluginConfig();
 		}
 		return new PluginConfig(pluginsDirFile.toPath());
 	}
