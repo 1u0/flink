@@ -1133,7 +1133,6 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 		if (executionState == ExecutionState.RUNNING && invokable != null) {
 
 			// build a local closure
-			final String taskName = taskNameWithSubtask;
 			final SafetyNetCloseableRegistry safetyNetCloseableRegistry =
 				FileSystemSafetyNet.getSafetyNetCloseableRegistryForThread();
 
@@ -1145,12 +1144,7 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 					FileSystemSafetyNet.setSafetyNetCloseableRegistryForThread(safetyNetCloseableRegistry);
 
 					try {
-						boolean success = invokable.triggerCheckpoint(checkpointMetaData, checkpointOptions, advanceToEndOfEventTime);
-						if (!success) {
-							checkpointResponder.declineCheckpoint(
-									getJobID(), getExecutionId(), checkpointID,
-									new CheckpointDeclineTaskNotReadyException(taskName));
-						}
+						invokable.triggerCheckpoint(checkpointMetaData, checkpointOptions, advanceToEndOfEventTime);
 					}
 					catch (Throwable t) {
 						if (getExecutionState() == ExecutionState.RUNNING) {

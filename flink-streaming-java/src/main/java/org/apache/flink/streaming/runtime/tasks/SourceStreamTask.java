@@ -76,7 +76,7 @@ public class SourceStreamTask<OUT, SRC extends SourceFunction<OUT>, OP extends S
 					try {
 						SourceStreamTask.super.triggerCheckpoint(checkpointMetaData, checkpointOptions, false);
 					}
-					catch (RuntimeException | FlinkException e) {
+					catch (RuntimeException e) {
 						throw e;
 					}
 					catch (Exception e) {
@@ -163,6 +163,13 @@ public class SourceStreamTask<OUT, SRC extends SourceFunction<OUT>, OP extends S
 			synchronized (getCheckpointLock()) {
 				return isRunning();
 			}
+		}
+	}
+
+	@Override
+	protected void declineCheckpoint(long checkpointId) {
+		if (!externallyInducedCheckpoints) {
+			super.declineCheckpoint(checkpointId);
 		}
 	}
 
