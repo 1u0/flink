@@ -1435,15 +1435,19 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 	private class TimerInvocationContext implements SystemProcessingTimeService.ScheduledCallbackExecutionContext {
 		@Override
 		public void invoke(ProcessingTimeCallback callback, long timestamp) throws InterruptedException {
-			mailbox.putMail(() -> {
-				synchronized (getCheckpointLock()) {
-					try {
-						callback.onProcessingTime(timestamp);
-					} catch (Throwable t) {
-						handleAsyncException("Caught exception while processing timer.", new TimerException(t));
+			try {
+				taskMailboxExecutor.getMailbox().putMail(() -> {
+					synchronized (getCheckpointLock()) {
+						try {
+							callback.onProcessingTime(timestamp);
+						} catch (Throwable t) {
+							handleAsyncException("Caught exception while processing timer.", new TimerException(t));
+						}
 					}
-				}
-			});
+				});
+			} catch (MailboxStateException e) {
+				throw new RuntimeException(e);
+			}
 		}
 	}
 }
