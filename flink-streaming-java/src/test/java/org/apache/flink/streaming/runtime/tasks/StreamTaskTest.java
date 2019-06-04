@@ -335,10 +335,11 @@ public class StreamTaskTest extends TestLogger {
 
 		waitTaskIsRunning(streamTask, task.invocationFuture);
 
-		streamTask.triggerCheckpoint(
+		streamTask.triggerCheckpointAsync(
 			new CheckpointMetaData(42L, 1L),
 			CheckpointOptions.forCheckpointWithDefaultLocation(),
-			false);
+			false)
+			.get();
 
 		assertEquals(testException, declineDummyEnvironment.getLastDeclinedCheckpointCause());
 
@@ -375,7 +376,7 @@ public class StreamTaskTest extends TestLogger {
 
 		waitTaskIsRunning(streamTask, task.invocationFuture);
 
-		streamTask.triggerCheckpoint(
+		streamTask.triggerCheckpointAsync(
 			new CheckpointMetaData(42L, 1L),
 			CheckpointOptions.forCheckpointWithDefaultLocation(),
 			false);
@@ -417,10 +418,11 @@ public class StreamTaskTest extends TestLogger {
 			waitTaskIsRunning(streamTask, task.invocationFuture);
 
 			mockEnvironment.setExpectedExternalFailureCause(Throwable.class);
-			streamTask.triggerCheckpoint(
+			streamTask.triggerCheckpointAsync(
 				new CheckpointMetaData(42L, 1L),
 				CheckpointOptions.forCheckpointWithDefaultLocation(),
-				false);
+				false)
+				.get();
 
 			// wait for the completion of the async task
 			ExecutorService executor = streamTask.getAsyncOperationsThreadPool();
@@ -504,7 +506,7 @@ public class StreamTaskTest extends TestLogger {
 			waitTaskIsRunning(streamTask, task.invocationFuture);
 
 			final long checkpointId = 42L;
-			streamTask.triggerCheckpoint(
+			streamTask.triggerCheckpointAsync(
 				new CheckpointMetaData(checkpointId, 1L),
 				CheckpointOptions.forCheckpointWithDefaultLocation(),
 				false);
@@ -585,7 +587,7 @@ public class StreamTaskTest extends TestLogger {
 		waitTaskIsRunning(task.streamTask, task.invocationFuture);
 
 		final long checkpointId = 42L;
-		task.streamTask.triggerCheckpoint(
+		task.streamTask.triggerCheckpointAsync(
 			new CheckpointMetaData(checkpointId, 1L),
 			CheckpointOptions.forCheckpointWithDefaultLocation(),
 			false);
@@ -663,7 +665,7 @@ public class StreamTaskTest extends TestLogger {
 
 			waitTaskIsRunning(task.streamTask, task.invocationFuture);
 
-			task.streamTask.triggerCheckpoint(
+			task.streamTask.triggerCheckpointAsync(
 				new CheckpointMetaData(42L, 1L),
 				CheckpointOptions.forCheckpointWithDefaultLocation(),
 				false);

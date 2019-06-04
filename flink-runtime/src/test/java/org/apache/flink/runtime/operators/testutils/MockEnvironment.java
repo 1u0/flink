@@ -107,7 +107,7 @@ public class MockEnvironment implements Environment, AutoCloseable {
 
 	private final TaskEventDispatcher taskEventDispatcher = new TaskEventDispatcher();
 
-	private Optional<Class<Throwable>> expectedExternalFailureCause = Optional.empty();
+	private Optional<Class<? extends Throwable>> expectedExternalFailureCause = Optional.empty();
 
 	private Optional<Throwable> actualExternalFailureCause = Optional.empty();
 
@@ -346,7 +346,7 @@ public class MockEnvironment implements Environment, AutoCloseable {
 		ioManager.close();
 	}
 
-	public void setExpectedExternalFailureCause(Class<Throwable> expectedThrowableClass) {
+	public void setExpectedExternalFailureCause(Class<? extends Throwable> expectedThrowableClass) {
 		this.expectedExternalFailureCause = Optional.of(expectedThrowableClass);
 	}
 
