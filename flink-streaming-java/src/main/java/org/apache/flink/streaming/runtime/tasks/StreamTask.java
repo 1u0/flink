@@ -838,22 +838,28 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 	}
 
 	@Override
-	public void notifyCheckpointComplete(long checkpointId) throws Exception {
-		synchronized (lock) {
-			if (isRunning) {
-				LOG.debug("Notification of complete checkpoint for task {}", getName());
+	public void notifyCheckpointComplete(long checkpointId) {
+		try {
+			synchronized (lock) {
+				if (isRunning) {
+					LOG.debug("Notification of complete checkpoint for task {}", getName());
 
-				for (StreamOperator<?> operator : operatorChain.getAllOperators()) {
-					if (operator != null) {
-						operator.notifyCheckpointComplete(checkpointId);
+					for (StreamOperator<?> operator : operatorChain.getAllOperators()) {
+						if (operator != null) {
+							operator.notifyCheckpointComplete(checkpointId);
+						}
 					}
-				}
 
-				syncSavepointLatch.acknowledgeCheckpointAndTrigger(checkpointId);
+					syncSavepointLatch.acknowledgeCheckpointAndTrigger(checkpointId);
+				} else {
+					LOG.debug("Ignoring notification of complete checkpoint for not-running task {}", getName());
+				}
 			}
-			else {
-				LOG.debug("Ignoring notification of complete checkpoint for not-running task {}", getName());
-			}
+			getEnvironment().getTaskStateManager().notifyCheckpointComplete(checkpointId);
+		} catch (Exception e) {
+			handleAsyncException(new RuntimeException(
+				"Error while confirming checkpoint",
+				e));
 		}
 	}
 

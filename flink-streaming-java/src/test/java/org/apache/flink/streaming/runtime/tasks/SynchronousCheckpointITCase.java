@@ -192,7 +192,7 @@ public class SynchronousCheckpointITCase {
 		}
 
 		@Override
-		public void notifyCheckpointComplete(long checkpointId) throws Exception {
+		public void notifyCheckpointComplete(long checkpointId) {
 			SynchronousCheckpointITCase.synchronousCheckpointPhase.setState(CheckpointingState.EXECUTING_CALLBACK);
 			super.notifyCheckpointComplete(checkpointId);
 

@@ -97,7 +97,7 @@ public class TaskAsyncCallTest extends TestLogger {
 	private static OneShotLatch triggerLatch;
 
 	/**
-	 * Triggered when {@link CheckpointsInOrderInvokable#notifyCheckpointComplete(long)}
+	 * Triggered when {@link AbstractInvokable#notifyCheckpointComplete(long)}
 	 * was called {@link #numCalls} times.
 	 */
 	private static OneShotLatch notifyCheckpointCompleteLatch;
