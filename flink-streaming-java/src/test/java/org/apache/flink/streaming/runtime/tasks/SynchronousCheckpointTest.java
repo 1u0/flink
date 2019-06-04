@@ -18,7 +18,6 @@
 
 package org.apache.flink.streaming.runtime.tasks;
 
-import org.apache.flink.core.testutils.OneShotLatch;
 import org.apache.flink.runtime.checkpoint.CheckpointMetaData;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.checkpoint.CheckpointType;
@@ -30,10 +29,14 @@ import org.apache.flink.runtime.state.CheckpointStorageLocationReference;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -42,22 +45,22 @@ import static org.junit.Assert.fail;
  */
 public class SynchronousCheckpointTest {
 
-	private OneShotLatch execLatch;
+	private enum Event {
+		TASK_INITIALIZED,
+	}
 
 	private AtomicReference<Throwable> error;
 
-	private StreamTask streamTaskUnderTest;
+	private StreamTaskUnderTest streamTaskUnderTest;
 	private Thread mainThreadExecutingTaskUnderTest;
-	private Thread checkpointingThread;
+	private LinkedBlockingQueue<Event> eventQueue = new LinkedBlockingQueue<>();
 
 	@Before
 	public void setupTestEnvironment() throws InterruptedException {
-		final OneShotLatch runningLatch = new OneShotLatch();
 
-		execLatch = new OneShotLatch();
 		error = new AtomicReference<>();
 
-		streamTaskUnderTest = createTask(runningLatch, execLatch);
+		streamTaskUnderTest = createTask(eventQueue);
 
 		mainThreadExecutingTaskUnderTest = launchOnSeparateThread(() -> {
 			try {
@@ -66,10 +69,11 @@ public class SynchronousCheckpointTest {
 				error.set(e);
 			}
 		});
-		runningLatch.await();
+		// Wait until task has been initialized.
+		assertThat(eventQueue.take(), is(Event.TASK_INITIALIZED));
 	}
 
-	@Test(timeout = 1000)
+	@Test(timeout = 7000)
 	public void synchronousCheckpointBlocksUntilNotificationForCorrectCheckpointComes() throws Exception {
 		final SynchronousSavepointLatch syncSavepointLatch = launchSynchronousSavepointAndGetTheLatch();
 		assertFalse(syncSavepointLatch.isCompleted());
@@ -80,55 +84,39 @@ public class SynchronousCheckpointTest {
 		streamTaskUnderTest.notifyCheckpointComplete(42);
 		assertTrue(syncSavepointLatch.isCompleted());
 
-		waitUntilCheckpointingThreadIsFinished();
-		allowTaskToExitTheRunLoop();
+		streamTaskUnderTest.stopTask();
 		waitUntilMainExecutionThreadIsFinished();
 
 		assertFalse(streamTaskUnderTest.isCanceled());
 	}
 
-	@Test(timeout = 1000)
+	@Test(timeout = 7000)
 	public void cancelShouldAlsoCancelPendingSynchronousCheckpoint() throws Throwable {
 		final SynchronousSavepointLatch syncSavepointLatch = launchSynchronousSavepointAndGetTheLatch();
 		assertFalse(syncSavepointLatch.isCompleted());
 
-		allowTaskToExitTheRunLoop();
+		streamTaskUnderTest.cancel();
 
 		assertFalse(syncSavepointLatch.isCompleted());
 		streamTaskUnderTest.cancel();
 		assertTrue(syncSavepointLatch.isCanceled());
 
-		waitUntilCheckpointingThreadIsFinished();
 		waitUntilMainExecutionThreadIsFinished();
 
 		assertTrue(streamTaskUnderTest.isCanceled());
 	}
 
 	private SynchronousSavepointLatch launchSynchronousSavepointAndGetTheLatch() throws InterruptedException {
-		checkpointingThread = launchOnSeparateThread(() -> {
-			try {
-				streamTaskUnderTest.triggerCheckpoint(
-						new CheckpointMetaData(42, System.currentTimeMillis()),
-						new CheckpointOptions(CheckpointType.SYNC_SAVEPOINT, CheckpointStorageLocationReference.getDefault()),
-						false
-				);
-			} catch (Exception e) {
-				error.set(e);
-			}
-		});
+		streamTaskUnderTest.triggerCheckpointAsync(
+				new CheckpointMetaData(42, System.currentTimeMillis()),
+				new CheckpointOptions(CheckpointType.SYNC_SAVEPOINT, CheckpointStorageLocationReference.getDefault()),
+				false
+		);
 		return waitForSyncSavepointLatchToBeSet(streamTaskUnderTest);
 	}
 
 	private void waitUntilMainExecutionThreadIsFinished() throws InterruptedException {
 		mainThreadExecutingTaskUnderTest.join();
-	}
-
-	private void waitUntilCheckpointingThreadIsFinished() throws InterruptedException {
-		checkpointingThread.join();
-	}
-
-	private void allowTaskToExitTheRunLoop() {
-		execLatch.trigger();
 	}
 
 	private SynchronousSavepointLatch waitForSyncSavepointLatchToBeSet(final StreamTask streamTaskUnderTest) throws InterruptedException {
@@ -150,34 +138,36 @@ public class SynchronousCheckpointTest {
 		return thread;
 	}
 
-	private StreamTask createTask(final OneShotLatch runningLatch, final OneShotLatch execLatch) {
+	private static StreamTaskUnderTest createTask(Queue<Event> eventQueue) {
 		final DummyEnvironment environment =
 				new DummyEnvironment("test", 1, 0);
-		return new StreamTaskUnderTest(environment, runningLatch, execLatch);
+		return new StreamTaskUnderTest(environment, eventQueue);
 	}
 
 	private static class StreamTaskUnderTest extends StreamTask {
 
-		private final OneShotLatch runningLatch;
-		private final OneShotLatch execLatch;
+		private Queue<Event> eventQueue;
+		private volatile boolean stopped;
 
 		StreamTaskUnderTest(
-				final Environment env,
-				final OneShotLatch runningLatch,
-				final OneShotLatch execLatch) {
+			final Environment env,
+			Queue<Event> eventQueue) {
 			super(env);
-			this.runningLatch = checkNotNull(runningLatch);
-			this.execLatch = checkNotNull(execLatch);
+			this.eventQueue = checkNotNull(eventQueue);
 		}
 
 		@Override
-		protected void init() {}
+		protected void init() {
+			eventQueue.add(Event.TASK_INITIALIZED);
+		}
 
 		@Override
 		protected void performDefaultAction(ActionContext context) throws Exception {
-			runningLatch.trigger();
-			execLatch.await();
-			context.allActionsCompleted();
+			if (stopped || isCanceled()) {
+				context.allActionsCompleted();
+			} else {
+				context.actionsUnavailable();
+			}
 		}
 
 		@Override
@@ -185,5 +175,9 @@ public class SynchronousCheckpointTest {
 
 		@Override
 		protected void cancelTask() {}
+
+		void stopTask() {
+			stopped = true;
+		}
 	}
 }

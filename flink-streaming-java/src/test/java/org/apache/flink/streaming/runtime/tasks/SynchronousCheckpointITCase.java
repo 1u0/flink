@@ -72,6 +72,7 @@ import org.junit.rules.Timeout;
 
 import java.util.Collections;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
@@ -173,17 +174,21 @@ public class SynchronousCheckpointITCase {
 		}
 
 		@Override
-		public boolean triggerCheckpoint(CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions, boolean advanceToEndOfEventTime) throws Exception {
+		public Future<Boolean> triggerCheckpointAsync(CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions, boolean advanceToEndOfEventTime) {
 			SynchronousCheckpointITCase.synchronousCheckpointPhase.setState(CheckpointingState.PERFORMING_CHECKPOINT);
 			checkpointLatch.trigger();
 
-			super.triggerCheckpoint(checkpointMetaData, checkpointOptions, advanceToEndOfEventTime);
+			Future<Boolean> result = super.triggerCheckpointAsync(checkpointMetaData, checkpointOptions, advanceToEndOfEventTime);
 
-			checkpointCompletionLatch.await();
+			try {
+				checkpointCompletionLatch.await();
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
 			SynchronousCheckpointITCase.synchronousCheckpointPhase.setState(CheckpointingState.FINISHED_CHECKPOINT);
 			checkpointLatch.trigger();
 
-			return true;
+			return result;
 		}
 
 		@Override

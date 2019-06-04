@@ -68,7 +68,9 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -90,7 +92,7 @@ public class TaskAsyncCallTest extends TestLogger {
 	private static OneShotLatch awaitLatch;
 
 	/**
-	 * Triggered when {@link CheckpointsInOrderInvokable#triggerCheckpoint(CheckpointMetaData, CheckpointOptions, boolean)}
+	 * Triggered when {@link CheckpointsInOrderInvokable#triggerCheckpointAsync(CheckpointMetaData, CheckpointOptions, boolean)}
 	 * was called {@link #numCalls} times.
 	 */
 	private static OneShotLatch triggerLatch;
@@ -306,7 +308,7 @@ public class TaskAsyncCallTest extends TestLogger {
 		}
 
 		@Override
-		public boolean triggerCheckpoint(CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions, boolean advanceToEndOfEventTime) {
+		public Future<Boolean> triggerCheckpointAsync(CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions, boolean advanceToEndOfEventTime) {
 			lastCheckpointId++;
 			if (checkpointMetaData.getCheckpointId() == lastCheckpointId) {
 				if (lastCheckpointId == numCalls) {
@@ -319,7 +321,7 @@ public class TaskAsyncCallTest extends TestLogger {
 					notifyAll();
 				}
 			}
-			return true;
+			return CompletableFuture.completedFuture(true);
 		}
 
 		@Override
@@ -358,10 +360,10 @@ public class TaskAsyncCallTest extends TestLogger {
 		}
 
 		@Override
-		public boolean triggerCheckpoint(CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions, boolean advanceToEndOfEventTime) {
+		public Future<Boolean> triggerCheckpointAsync(CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions, boolean advanceToEndOfEventTime) {
 			classLoaders.add(Thread.currentThread().getContextClassLoader());
 
-			return super.triggerCheckpoint(checkpointMetaData, checkpointOptions, advanceToEndOfEventTime);
+			return super.triggerCheckpointAsync(checkpointMetaData, checkpointOptions, advanceToEndOfEventTime);
 		}
 
 		@Override

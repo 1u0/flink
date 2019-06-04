@@ -33,6 +33,7 @@ import org.apache.flink.runtime.operators.testutils.DummyEnvironment;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.concurrent.Future;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -504,7 +505,7 @@ public class BarrierTrackerTest {
 		}
 
 		@Override
-		public boolean triggerCheckpoint(CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions, boolean advanceToEndOfEventTime) throws Exception {
+		public Future<Boolean> triggerCheckpointAsync(CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions, boolean advanceToEndOfEventTime) {
 			throw new UnsupportedOperationException("should never be called");
 		}
 

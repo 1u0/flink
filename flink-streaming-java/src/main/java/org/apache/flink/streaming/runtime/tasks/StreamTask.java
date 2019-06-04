@@ -79,6 +79,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -672,34 +673,37 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 	// ------------------------------------------------------------------------
 
 	@Override
-	public boolean triggerCheckpoint(
+	public Future<Boolean> triggerCheckpointAsync(
 			CheckpointMetaData checkpointMetaData,
 			CheckpointOptions checkpointOptions,
-			boolean advanceToEndOfEventTime) throws Exception {
+			boolean advanceToEndOfEventTime) {
 
-		try {
-			// No alignment if we inject a checkpoint
-			CheckpointMetrics checkpointMetrics = new CheckpointMetrics()
+		return taskMailboxExecutor.submit(() -> {
+			try {
+				// No alignment if we inject a checkpoint
+				CheckpointMetrics checkpointMetrics = new CheckpointMetrics()
 					.setBytesBufferedInAlignment(0L)
 					.setAlignmentDurationNanos(0L);
 
-			boolean success = performCheckpoint(checkpointMetaData, checkpointOptions, checkpointMetrics, advanceToEndOfEventTime);
-			if (!success) {
-				declineCheckpoint(checkpointMetaData.getCheckpointId());
+				boolean success = performCheckpoint(checkpointMetaData, checkpointOptions, checkpointMetrics, advanceToEndOfEventTime);
+				if (!success) {
+					declineCheckpoint(checkpointMetaData.getCheckpointId());
+				}
+				return success;
+			} catch (Exception e) {
+				// propagate exceptions only if the task is still in "running" state
+				if (isRunning) {
+					Exception exception = new Exception("Could not perform checkpoint " + checkpointMetaData.getCheckpointId() +
+						" for operator " + getName() + '.', e);
+					handleCheckpointException(exception);
+					throw exception;
+				} else {
+					LOG.debug("Could not perform checkpoint {} for operator {} while the " +
+						"invokable was not in state running.", checkpointMetaData.getCheckpointId(), getName(), e);
+					return false;
+				}
 			}
-			return success;
-		}
-		catch (Exception e) {
-			// propagate exceptions only if the task is still in "running" state
-			if (isRunning) {
-				throw new Exception("Could not perform checkpoint " + checkpointMetaData.getCheckpointId() +
-					" for operator " + getName() + '.', e);
-			} else {
-				LOG.debug("Could not perform checkpoint {} for operator {} while the " +
-					"invokable was not in state running.", checkpointMetaData.getCheckpointId(), getName(), e);
-				return false;
-			}
-		}
+		});
 	}
 
 	@Override
@@ -825,6 +829,10 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			new CheckpointDeclineTaskNotReadyException(getName()));
 	}
 
+	protected void handleCheckpointException(Exception exception) {
+		handleAsyncException(exception);
+	}
+
 	public ExecutorService getAsyncOperationsThreadPool() {
 		return asyncOperationsThreadPool;
 	}
@@ -942,6 +950,10 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 	 */
 	@Override
 	public void handleAsyncException(String message, Throwable exception) {
+		handleAsyncException(exception);
+	}
+
+	private void handleAsyncException(Throwable exception) {
 		if (isRunning) {
 			// only fail if the task is still running
 			getEnvironment().failExternally(exception);
