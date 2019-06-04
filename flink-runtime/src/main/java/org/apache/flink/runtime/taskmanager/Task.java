@@ -1132,28 +1132,10 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 
 		if (executionState == ExecutionState.RUNNING && invokable != null) {
 
-			// build a local closure
-			final SafetyNetCloseableRegistry safetyNetCloseableRegistry =
-				FileSystemSafetyNet.getSafetyNetCloseableRegistryForThread();
-
-			Runnable runnable = new Runnable() {
-				@Override
-				public void run() {
-					// set safety net from the task's context for checkpointing thread
-					LOG.debug("Creating FileSystem stream leak safety net for {}", Thread.currentThread().getName());
-					FileSystemSafetyNet.setSafetyNetCloseableRegistryForThread(safetyNetCloseableRegistry);
-
-					try {
-						invokable.triggerCheckpointAsync(checkpointMetaData, checkpointOptions, advanceToEndOfEventTime);
-					} finally {
-						FileSystemSafetyNet.setSafetyNetCloseableRegistryForThread(null);
-					}
-				}
-			};
 			executeAsyncCallRunnable(
-					runnable,
-					String.format("Checkpoint Trigger for %s (%s).", taskNameWithSubtask, executionId),
-					checkpointOptions.getCheckpointType().isSynchronous());
+				() -> invokable.triggerCheckpointAsync(checkpointMetaData, checkpointOptions, advanceToEndOfEventTime),
+				String.format("Checkpoint Trigger for %s (%s).", taskNameWithSubtask, executionId),
+				checkpointOptions.getCheckpointType().isSynchronous());
 		}
 		else {
 			LOG.debug("Declining checkpoint request for non-running task {} ({}).", taskNameWithSubtask, executionId);
