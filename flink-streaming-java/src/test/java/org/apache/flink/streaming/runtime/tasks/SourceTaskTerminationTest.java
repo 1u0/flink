@@ -36,7 +36,9 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
@@ -57,6 +59,9 @@ public class SourceTaskTerminationTest {
 	private static MultiShotLatch runLoopEnd;
 
 	private static AtomicReference<Throwable> error;
+
+	@Rule
+	public final Timeout timeoutPerTest = Timeout.seconds(7);
 
 	@Before
 	public void initialize() {

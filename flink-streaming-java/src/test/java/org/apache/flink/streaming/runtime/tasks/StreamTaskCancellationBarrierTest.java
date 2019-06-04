@@ -32,7 +32,9 @@ import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.StreamMap;
 import org.apache.flink.streaming.api.operators.co.CoStreamMap;
 
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -48,6 +50,9 @@ import static org.mockito.Mockito.verify;
  * Test checkpoint cancellation barrier.
  */
 public class StreamTaskCancellationBarrierTest {
+
+	@Rule
+	public final Timeout timeoutPerTest = Timeout.seconds(7);
 
 	/**
 	 * This test checks that tasks emit a proper cancel checkpoint barrier, if a "trigger checkpoint" message

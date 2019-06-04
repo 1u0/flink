@@ -63,7 +63,9 @@ import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.TestLogger;
 
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -95,6 +97,9 @@ public class OneInputStreamTaskTest extends TestLogger {
 
 	private static final ListStateDescriptor<Integer> TEST_DESCRIPTOR =
 		new ListStateDescriptor<>("test", new IntSerializer());
+
+	@Rule
+	public final Timeout timeoutPerTest = Timeout.seconds(7);
 
 	/**
 	 * This test verifies that open() and close() are correctly called. This test also verifies

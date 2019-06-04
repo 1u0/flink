@@ -114,7 +114,9 @@ import org.apache.flink.util.SerializedValue;
 import org.apache.flink.util.TestLogger;
 
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
@@ -173,6 +175,9 @@ import static org.powermock.api.mockito.PowerMockito.whenNew;
 public class StreamTaskTest extends TestLogger {
 
 	private static OneShotLatch syncLatch;
+
+	@Rule
+	public final Timeout timeoutPerTest = Timeout.seconds(7);
 
 	/**
 	 * This test checks that cancel calls that are issued before the operator is

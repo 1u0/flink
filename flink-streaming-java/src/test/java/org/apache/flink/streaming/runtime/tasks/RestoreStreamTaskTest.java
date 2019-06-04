@@ -43,7 +43,9 @@ import org.apache.flink.streaming.util.TestHarnessUtil;
 import org.apache.flink.util.TestLogger;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -62,6 +64,9 @@ import static org.junit.Assert.assertEquals;
 public class RestoreStreamTaskTest extends TestLogger {
 
 	private static final Set<OperatorID> RESTORED_OPERATORS = ConcurrentHashMap.newKeySet();
+
+	@Rule
+	public final Timeout timeoutPerTest = Timeout.seconds(7);
 
 	@Before
 	public void setup() {
