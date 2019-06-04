@@ -68,6 +68,8 @@ public class MailboxProcessor {
 	/** The thread that executes the mailbox letters. */
 	private final Thread mailboxThread;
 
+	private final MailboxExecutor mainMailboxExecutor;
+
 	/** Control flag to terminate the mailbox loop. Must only be accessed from mailbox thread. */
 	private boolean mailboxLoopRunning;
 
@@ -85,9 +87,14 @@ public class MailboxProcessor {
 		this.mailboxDefaultAction = Preconditions.checkNotNull(mailboxDefaultAction);
 		this.mailbox = new TaskMailboxImpl();
 		this.mailboxThread = Thread.currentThread();
+		this.mainMailboxExecutor = new MailboxExecutorImpl(mailbox.getMainMailbox(), mailboxThread);
 		this.mailboxPoisonLetter = () -> mailboxLoopRunning = false;
 		this.mailboxLoopRunning = true;
 		this.suspendedDefaultAction = null;
+	}
+
+	public MailboxExecutor getMainMailboxExecutor() {
+		return mainMailboxExecutor;
 	}
 
 	/**

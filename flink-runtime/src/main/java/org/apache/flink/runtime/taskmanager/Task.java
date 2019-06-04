@@ -1151,18 +1151,7 @@ public class Task implements Runnable, TaskActions, PartitionProducerStateProvid
 					FileSystemSafetyNet.setSafetyNetCloseableRegistryForThread(safetyNetCloseableRegistry);
 
 					try {
-						invokable.triggerCheckpoint(checkpointMetaData, checkpointOptions, advanceToEndOfEventTime);
-					}
-					catch (Throwable t) {
-						if (getExecutionState() == ExecutionState.RUNNING) {
-							failExternally(new Exception(
-								"Error while triggering checkpoint " + checkpointID + " for " +
-									taskNameWithSubtask, t));
-						} else {
-							LOG.debug("Encountered error while triggering checkpoint {} for " +
-								"{} ({}) while being not in state running.", checkpointID,
-								taskNameWithSubtask, executionId, t);
-						}
+						invokable.triggerCheckpointAsync(checkpointMetaData, checkpointOptions, advanceToEndOfEventTime);
 					} finally {
 						FileSystemSafetyNet.setSafetyNetCloseableRegistryForThread(null);
 					}

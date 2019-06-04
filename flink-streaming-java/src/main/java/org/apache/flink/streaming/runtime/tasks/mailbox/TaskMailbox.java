@@ -75,6 +75,8 @@ public interface TaskMailbox {
 	@Nonnull
 	State getState();
 
+	Mailbox getMainMailbox();
+
 	/**
 	 * Returns a mailbox view bound to the given priority.
 	 *
