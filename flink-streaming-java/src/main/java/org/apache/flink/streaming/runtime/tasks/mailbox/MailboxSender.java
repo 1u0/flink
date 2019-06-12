@@ -32,16 +32,18 @@ public interface MailboxSender {
 	 *
 	 * @param letter the letter to enqueue.
 	 * @return <code>true</code> iff successful.
+	 * @throws MailboxStateException if the mailbox is quiesced or closed.
 	 */
-	boolean tryPutMail(@Nonnull Runnable letter);
+	boolean tryPutMail(@Nonnull Runnable letter) throws MailboxStateException;
 
 	/**
 	 * Enqueues the given letter to the mailbox and blocks until there is capacity for a successful put.
 	 *
 	 * @param letter the letter to enqueue.
 	 * @throws InterruptedException on interruption.
+	 * @throws MailboxStateException if the mailbox is quiesced or closed.
 	 */
-	void putMail(@Nonnull Runnable letter) throws InterruptedException;
+	void putMail(@Nonnull Runnable letter) throws InterruptedException,  MailboxStateException;
 
 	/**
 	 * This method blocks until the mailbox has again capacity to enqueue new letters.
