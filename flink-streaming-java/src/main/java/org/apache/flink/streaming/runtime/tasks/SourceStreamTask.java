@@ -128,12 +128,7 @@ public class SourceStreamTask<OUT, SRC extends SourceFunction<OUT>, OP extends S
 
 		final Mailbox mailbox = taskMailboxExecutor.getMailbox();
 		while (isMailboxLoopRunning()) {
-
-			Runnable letter = mailbox.takeMail();
-
-			synchronized (getCheckpointLock()) {
-				letter.run();
-			}
+			mailbox.takeMail().run();
 		}
 	}
 
