@@ -95,6 +95,10 @@ public class MailboxProcessor {
 		return mailboxExecutor;
 	}
 
+	public Mailbox getMailbox() {
+		return mailbox;
+	}
+
 	/**
 	 * Lifecycle method to open the mailbox for action submission.
 	 */

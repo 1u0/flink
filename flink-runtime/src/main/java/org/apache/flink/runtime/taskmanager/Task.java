@@ -1158,7 +1158,7 @@ public class Task implements Runnable, TaskActions, PartitionProducerStateProvid
 		if (executionState == ExecutionState.RUNNING && invokable != null) {
 
 			executeAsyncCallRunnable(
-					() -> invokable.notifyCheckpointComplete(checkpointID),
+					() -> invokable.notifyCheckpointCompleteAsync(checkpointID),
 					"Checkpoint Confirmation for " + taskNameWithSubtask
 			);
 		}
