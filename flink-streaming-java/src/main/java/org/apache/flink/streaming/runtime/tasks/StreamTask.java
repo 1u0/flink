@@ -419,6 +419,10 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 				// let mailbox execution reject all new letters from this point
 				taskMailboxExecutor.shutdown();
 
+				while (taskMailboxExecutor.tryYield()) {
+					// Noop.
+				}
+
 				// only set the StreamTask to not running after all operators have been closed!
 				// See FLINK-7430
 				isRunning = false;
