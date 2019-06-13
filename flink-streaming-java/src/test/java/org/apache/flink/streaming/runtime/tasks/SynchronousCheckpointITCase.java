@@ -192,12 +192,13 @@ public class SynchronousCheckpointITCase {
 		}
 
 		@Override
-		public void notifyCheckpointComplete(long checkpointId) {
+		public Future<Void> notifyCheckpointCompleteAsync(long checkpointId) {
 			SynchronousCheckpointITCase.synchronousCheckpointPhase.setState(CheckpointingState.EXECUTING_CALLBACK);
-			super.notifyCheckpointComplete(checkpointId);
+			Future<Void> result = super.notifyCheckpointCompleteAsync(checkpointId);
 
 			SynchronousCheckpointITCase.synchronousCheckpointPhase.setState(CheckpointingState.EXECUTED_CALLBACK);
 			notifyLatch.trigger();
+			return result;
 		}
 
 		@Override

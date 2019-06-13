@@ -77,6 +77,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -193,13 +194,13 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
 	private final List<RecordWriter<SerializationDelegate<StreamRecord<OUT>>>> recordWriters;
 
-	private final SynchronousSavepointLatch syncSavepointLatch;
-
 	protected final TaskMailboxExecutorServiceImpl taskMailboxExecutor;
 
 	protected final Runnable mailboxPoisonLetter;
 
 	private boolean mailboxLoopRunning;
+
+	private OptionalLong syncSavepointId = OptionalLong.empty();
 
 	// ------------------------------------------------------------------------
 
@@ -232,7 +233,6 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		this.configuration = new StreamConfig(getTaskConfiguration());
 		this.accumulatorMap = getEnvironment().getAccumulatorRegistry().getUserMap();
 		this.recordWriters = createRecordWriters(configuration, environment);
-		this.syncSavepointLatch = new SynchronousSavepointLatch();
 		this.taskMailboxExecutor = new TaskMailboxExecutorServiceImpl(new MailboxImpl());
 		this.mailboxLoopRunning = false;
 		this.mailboxPoisonLetter = () -> {
@@ -288,6 +288,47 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		return mailboxLoopRunning;
 	}
 
+	private void setSynchronousSavepointId(long checkpointId) {
+		Preconditions.checkState(
+			!syncSavepointId.isPresent(), "at most one stop-with-savepoint checkpoint at a time is allowed");
+		syncSavepointId = OptionalLong.of(checkpointId);
+	}
+
+	@VisibleForTesting
+	OptionalLong getSynchronousSavepointId() {
+		return syncSavepointId;
+	}
+
+	private boolean isSynchronousSavepointId(long checkpointId) {
+		return syncSavepointId.isPresent() && syncSavepointId.getAsLong() == checkpointId;
+	}
+
+	private void resetSynchronousSavepointId() {
+		syncSavepointId = OptionalLong.empty();
+	}
+
+	private void runSynchronousSavepointMailboxLoop() throws Exception {
+		assert syncSavepointId.isPresent();
+
+		Mailbox mailbox = taskMailboxExecutor.getMailbox();
+
+		while (mailboxLoopRunning && syncSavepointId.isPresent()) {
+			mailbox.takeMail().run();
+		}
+	}
+
+	private void runFinalMailboxLoop() {
+		Mailbox mailbox = taskMailboxExecutor.getMailbox();
+		Preconditions.checkState(mailbox.getState() == Mailbox.State.QUIESCED);
+		while (mailbox.hasMail()) {
+			try {
+				mailbox.tryTakeMail().ifPresent(Runnable::run);
+			} catch (MailboxStateException e) {
+				throw new IllegalStateException(e);
+			}
+		}
+	}
+
 	/**
 	 * Emits the {@link org.apache.flink.streaming.api.watermark.Watermark#MAX_WATERMARK MAX_WATERMARK}
 	 * so that all registered timers are fired.
@@ -323,11 +364,6 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			getEnvironment(),
 			stateBackend,
 			timerService);
-	}
-
-	@VisibleForTesting
-	SynchronousSavepointLatch getSynchronousSavepointLatch() {
-		return syncSavepointLatch;
 	}
 
 	@Override
@@ -420,9 +456,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 				// let mailbox execution reject all new letters from this point
 				taskMailboxExecutor.shutdown();
 
-				while (taskMailboxExecutor.tryYield()) {
-					// Noop.
-				}
+				runFinalMailboxLoop();
 
 				// only set the StreamTask to not running after all operators have been closed!
 				// See FLINK-7430
@@ -511,7 +545,6 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		// the "cancel task" call must come first, but the cancelables must be
 		// closed no matter what
 		try {
-			syncSavepointLatch.cancelCheckpointLatch();
 			cancelTask();
 		}
 		finally {
@@ -755,7 +788,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			if (isRunning) {
 
 				if (checkpointOptions.getCheckpointType().isSynchronous()) {
-					syncSavepointLatch.setCheckpointId(checkpointId);
+					setSynchronousSavepointId(checkpointId);
 
 					if (advanceToEndOfTime) {
 						advanceToEndOfEventTime();
@@ -810,14 +843,8 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			}
 		}
 
-		if (isRunning && syncSavepointLatch.isSet()) {
-
-			final boolean checkpointWasAcked =
-					syncSavepointLatch.blockUntilCheckpointIsAcknowledged();
-
-			if (checkpointWasAcked) {
-				finishTask();
-			}
+		if (isRunning && isSynchronousSavepointId(checkpointId)) {
+			runSynchronousSavepointMailboxLoop();
 		}
 
 		return result;
@@ -838,29 +865,40 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 	}
 
 	@Override
-	public void notifyCheckpointComplete(long checkpointId) {
-		try {
-			synchronized (lock) {
-				if (isRunning) {
-					LOG.debug("Notification of complete checkpoint for task {}", getName());
+	public Future<Void> notifyCheckpointCompleteAsync(long checkpointId) {
+		return taskMailboxExecutor.submit(() -> {
+			try {
+				boolean checkpointCompleted = false;
+				synchronized (lock) {
+					if (isRunning) {
+						LOG.debug("Notification of complete checkpoint for task {}", getName());
 
-					for (StreamOperator<?> operator : operatorChain.getAllOperators()) {
-						if (operator != null) {
-							operator.notifyCheckpointComplete(checkpointId);
+						for (StreamOperator<?> operator : operatorChain.getAllOperators()) {
+							if (operator != null) {
+								operator.notifyCheckpointComplete(checkpointId);
+							}
 						}
+						checkpointCompleted = true;
+					} else {
+						LOG.debug("Ignoring notification of complete checkpoint for not-running task {}", getName());
 					}
-
-					syncSavepointLatch.acknowledgeCheckpointAndTrigger(checkpointId);
-				} else {
-					LOG.debug("Ignoring notification of complete checkpoint for not-running task {}", getName());
 				}
+				getEnvironment().getTaskStateManager().notifyCheckpointComplete(checkpointId);
+				if (isSynchronousSavepointId(checkpointId)) {
+					if (checkpointCompleted) {
+						finishTask();
+						// Reset to "notify" the internal synchronous savepoint mailbox loop.
+						resetSynchronousSavepointId();
+					}
+				}
+				return null;
+			} catch (Exception e) {
+				handleAsyncException(new RuntimeException(
+					"Error while confirming checkpoint",
+					e));
+				throw e;
 			}
-			getEnvironment().getTaskStateManager().notifyCheckpointComplete(checkpointId);
-		} catch (Exception e) {
-			handleAsyncException(new RuntimeException(
-				"Error while confirming checkpoint",
-				e));
-		}
+		});
 	}
 
 	private void tryShutdownTimerService() {

@@ -1399,7 +1399,7 @@ public abstract class BarrierBufferTestBase {
 		public void abortCheckpointOnBarrier(long checkpointId, Throwable cause) {}
 
 		@Override
-		public void notifyCheckpointComplete(long checkpointId) {
+		public Future<Void> notifyCheckpointCompleteAsync(long checkpointId) {
 			throw new UnsupportedOperationException("should never be called");
 		}
 	}

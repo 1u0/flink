@@ -1154,7 +1154,7 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 		if (executionState == ExecutionState.RUNNING && invokable != null) {
 
 			executeAsyncCallRunnable(
-				() -> invokable.notifyCheckpointComplete(checkpointID),
+				() -> invokable.notifyCheckpointCompleteAsync(checkpointID),
 				"Checkpoint Confirmation for " + taskNameWithSubtask
 			);
 		}

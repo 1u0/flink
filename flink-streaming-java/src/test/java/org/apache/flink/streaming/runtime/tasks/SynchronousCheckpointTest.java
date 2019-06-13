@@ -75,14 +75,14 @@ public class SynchronousCheckpointTest {
 
 	@Test(timeout = 7000)
 	public void synchronousCheckpointBlocksUntilNotificationForCorrectCheckpointComes() throws Exception {
-		final SynchronousSavepointLatch syncSavepointLatch = launchSynchronousSavepointAndGetTheLatch();
-		assertFalse(syncSavepointLatch.isCompleted());
+		launchSynchronousSavepointAndGetTheLatch();
+		assertTrue(streamTaskUnderTest.getSynchronousSavepointId().isPresent());
 
-		streamTaskUnderTest.notifyCheckpointComplete(41);
-		assertFalse(syncSavepointLatch.isCompleted());
+		streamTaskUnderTest.notifyCheckpointCompleteAsync(41).get();
+		assertTrue(streamTaskUnderTest.getSynchronousSavepointId().isPresent());
 
-		streamTaskUnderTest.notifyCheckpointComplete(42);
-		assertTrue(syncSavepointLatch.isCompleted());
+		streamTaskUnderTest.notifyCheckpointCompleteAsync(42).get();
+		assertFalse(streamTaskUnderTest.getSynchronousSavepointId().isPresent());
 
 		streamTaskUnderTest.stopTask();
 		waitUntilMainExecutionThreadIsFinished();
@@ -92,44 +92,38 @@ public class SynchronousCheckpointTest {
 
 	@Test(timeout = 7000)
 	public void cancelShouldAlsoCancelPendingSynchronousCheckpoint() throws Throwable {
-		final SynchronousSavepointLatch syncSavepointLatch = launchSynchronousSavepointAndGetTheLatch();
-		assertFalse(syncSavepointLatch.isCompleted());
+		launchSynchronousSavepointAndGetTheLatch();
+		assertFalse(!streamTaskUnderTest.getSynchronousSavepointId().isPresent());
 
 		streamTaskUnderTest.cancel();
-
-		assertFalse(syncSavepointLatch.isCompleted());
-		streamTaskUnderTest.cancel();
-		assertTrue(syncSavepointLatch.isCanceled());
 
 		waitUntilMainExecutionThreadIsFinished();
 
 		assertTrue(streamTaskUnderTest.isCanceled());
 	}
 
-	private SynchronousSavepointLatch launchSynchronousSavepointAndGetTheLatch() throws InterruptedException {
+	private void launchSynchronousSavepointAndGetTheLatch() throws InterruptedException {
 		streamTaskUnderTest.triggerCheckpointAsync(
 				new CheckpointMetaData(42, System.currentTimeMillis()),
 				new CheckpointOptions(CheckpointType.SYNC_SAVEPOINT, CheckpointStorageLocationReference.getDefault()),
 				false
 		);
-		return waitForSyncSavepointLatchToBeSet(streamTaskUnderTest);
+		waitForSyncSavepointLatchToBeSet(streamTaskUnderTest);
 	}
 
 	private void waitUntilMainExecutionThreadIsFinished() throws InterruptedException {
 		mainThreadExecutingTaskUnderTest.join();
 	}
 
-	private SynchronousSavepointLatch waitForSyncSavepointLatchToBeSet(final StreamTask streamTaskUnderTest) throws InterruptedException {
+	private void waitForSyncSavepointLatchToBeSet(final StreamTask streamTaskUnderTest) throws InterruptedException {
 
-		SynchronousSavepointLatch syncSavepointFuture = streamTaskUnderTest.getSynchronousSavepointLatch();
-		while (!syncSavepointFuture.isSet()) {
+		while (!streamTaskUnderTest.getSynchronousSavepointId().isPresent()) {
 			Thread.sleep(10L);
 
 			if (error.get() != null && !(error.get() instanceof CancelTaskException)) {
 				fail();
 			}
 		}
-		return syncSavepointFuture;
 	}
 
 	private Thread launchOnSeparateThread(final Runnable runnable) {
