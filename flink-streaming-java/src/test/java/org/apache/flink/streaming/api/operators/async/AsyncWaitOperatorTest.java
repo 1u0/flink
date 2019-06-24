@@ -75,7 +75,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
@@ -588,7 +587,7 @@ public class AsyncWaitOperatorTest extends TestLogger {
 
 		final CheckpointMetaData checkpointMetaData = new CheckpointMetaData(checkpointId, checkpointTimestamp);
 
-		task.triggerCheckpoint(checkpointMetaData, CheckpointOptions.forCheckpointWithDefaultLocation(), false);
+		task.triggerCheckpointAsync(checkpointMetaData, CheckpointOptions.forCheckpointWithDefaultLocation(), false);
 
 		taskStateManagerMock.getWaitForReportLatch().await();
 
@@ -629,7 +628,9 @@ public class AsyncWaitOperatorTest extends TestLogger {
 		restoredTaskHarness.processElement(new StreamRecord<>(7, initialTime + 7));
 
 		// trigger the checkpoint while processing stream elements
-		restoredTask.triggerCheckpoint(new CheckpointMetaData(checkpointId, checkpointTimestamp), CheckpointOptions.forCheckpointWithDefaultLocation(), false);
+		restoredTask.triggerCheckpointAsync(
+			new CheckpointMetaData(checkpointId, checkpointTimestamp), CheckpointOptions.forCheckpointWithDefaultLocation(), false)
+			.get();
 
 		restoredTaskHarness.processElement(new StreamRecord<>(8, initialTime + 8));
 
@@ -647,12 +648,8 @@ public class AsyncWaitOperatorTest extends TestLogger {
 		expectedOutput.add(new StreamRecord<>(16, initialTime + 8));
 
 		// remove CheckpointBarrier which is not expected
-		Iterator<Object> iterator = restoredTaskHarness.getOutput().iterator();
-		while (iterator.hasNext()) {
-			if (iterator.next() instanceof CheckpointBarrier) {
-				iterator.remove();
-			}
-		}
+		restoredTaskHarness.getOutput()
+			.removeIf(record -> record instanceof CheckpointBarrier);
 
 		TestHarnessUtil.assertOutputEquals(
 				"StateAndRestored Test Output was not correct.",
