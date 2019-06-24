@@ -230,18 +230,6 @@ public abstract class AbstractInvokable {
 	}
 
 	/**
-	 * A blocking, synchronous version of {#triggerCheckpointAsync}.
-	 * @deprecated Override or use an asynchronous version.
-	 */
-	public final boolean triggerCheckpoint(
-		CheckpointMetaData checkpointMetaData,
-		CheckpointOptions checkpointOptions,
-		boolean advanceToEndOfEventTime) throws Exception {
-		return triggerCheckpointAsync(checkpointMetaData, checkpointOptions, advanceToEndOfEventTime)
-			.get();
-	}
-
-	/**
 	 * This method is called when a checkpoint is triggered as a result of receiving checkpoint
 	 * barriers on all input streams.
 	 *
