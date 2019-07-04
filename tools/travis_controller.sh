@@ -88,6 +88,33 @@ echo "Current stage: \"$STAGE\""
 
 EXIT_CODE=0
 
+DIFF_FILE_LIST="diff_files.txt"
+git diff --name-only "$TRAVIS_COMMIT_RANGE" > ${DIFF_FILE_LIST}
+cat ${DIFF_FILE_LIST}
+
+function is_docs_only_run() {
+    local all_docs_pattern="^docs/"
+    local exclude_docs_pattern="^docs/_includes/generated"
+
+    if ! (grep "${all_docs_pattern}" ${DIFF_FILE_LIST} | grep -vq "${exclude_docs_pattern}") ; then
+        echo "Have no docs changes"
+        return 1
+    fi
+
+    if grep -vq "${all_docs_pattern}" ${DIFF_FILE_LIST} || grep -q "${exclude_docs_pattern}" ${DIFF_FILE_LIST} ; then
+        echo "Have non-docs changes"
+        return 1
+    fi
+    echo "Have only docs changes"
+    return 0
+}
+
+if is_docs_only_run ; then
+    echo "Docs only $?"
+else
+    echo "All $?"
+fi
+
 # Run actual compile&test steps
 if [ $STAGE == "$STAGE_COMPILE" ]; then
 	MVN="mvn clean install -nsu -Dflink.convergence.phase=install -Pcheck-convergence -Dflink.forkCount=2 -Dflink.forkCountTestPackage=2 -Dmaven.javadoc.skip=true -B -DskipTests $PROFILE"
