@@ -54,6 +54,22 @@ function prepare_dependencies_tree_if_pr_build() {
     mvn dependency:list -DincludeGroupIds=org.apache.flink $PROFILE > mvn-dependencies-list.txt
     mvn exec:exec -Dexec.executable="echo" -Dexec.args="[INFO] Basedir: \${project.basedir}" $PROFILE > mvn-basedir-list.txt
 
+    echo "Python:"
+    python --version
+    which python
+    echo "Python3:"
+    which python3
+
+    echo "List of diff file names:"
+    echo "=============================================================================="
+    cat "$DIFF_LIST_FILEPATH"
+    echo "=============================================================================="
+
+    echo "mvn-basedir-list.txt:"
+    echo "=============================================================================="
+    cat mvn-basedir-list.txt
+    echo "=============================================================================="
+
     python3 ./tools/travis/mvn_diff_test.py process-mvn-dependencies mvn-dependencies-list.txt mvn-basedir-list.txt > "$MVN_DEPENDENCIES_TREE_FILEPATH"
 }
 
