@@ -72,6 +72,7 @@ import org.apache.flink.util.TestLogger;
 
 import org.hamcrest.Matchers;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
@@ -560,6 +561,7 @@ public class AsyncWaitOperatorTest extends TestLogger {
 		return jobGraph.getVerticesSortedTopologicallyFromSources().get(1);
 	}
 
+	@Ignore("TODO: this test is timing sensitive, try to adjust or change the implementation to make this stable")
 	@Test
 	public void testStateSnapshotAndRestore() throws Exception {
 		final OneInputStreamTaskTestHarness<Integer, Integer> testHarness = new OneInputStreamTaskTestHarness<>(
