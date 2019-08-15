@@ -71,7 +71,8 @@ class BoundedStreamTask<IN, OUT, OP extends OneInputStreamOperator<IN, OUT> & Bo
 
 		// re-initialize the operator with the correct collector.
 		StreamOperatorFactory<OUT> operatorFactory = configuration.getStreamOperatorFactory(getUserCodeClassLoader());
-		headOperator = operatorFactory.createStreamOperator(this, configuration, new CollectorWrapper<>(collector));
+		headOperator = operatorFactory.createStreamOperator(this, configuration, new CollectorWrapper<>(collector),
+				this.getMailboxExecutorFactory().apply(configuration.getChainIndex()));
 		headOperator.initializeState();
 		headOperator.open();
 	}

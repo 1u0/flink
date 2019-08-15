@@ -217,7 +217,7 @@ public class StreamSourceOperatorWatermarksTest {
 			.setProcessingTimeService(timeProvider)
 			.build();
 
-		operator.setup(mockTask, cfg, (Output<StreamRecord<T>>) mock(Output.class));
+		operator.setup(mockTask, cfg, (Output<StreamRecord<T>>) mock(Output.class), mockTask.getMailboxExecutor(cfg));
 	}
 
 	private static OperatorChain<?, ?> createOperatorChain(AbstractStreamOperator<?> operator) {

@@ -26,6 +26,7 @@ import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorFactory;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor;
 import org.apache.flink.table.runtime.generated.GeneratedClass;
 
 /**
@@ -43,7 +44,8 @@ public class CodeGenOperatorFactory<OUT> implements StreamOperatorFactory<OUT> {
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends StreamOperator<OUT>> T createStreamOperator(StreamTask<?, ?> containingTask,
-			StreamConfig config, Output<StreamRecord<OUT>> output) {
+			StreamConfig config, Output<StreamRecord<OUT>> output,
+			MailboxExecutor mailboxExecutor) {
 		return (T) generatedClass.newInstance(containingTask.getUserCodeClassLoader(),
 				generatedClass.getReferences(), containingTask, config, output);
 	}

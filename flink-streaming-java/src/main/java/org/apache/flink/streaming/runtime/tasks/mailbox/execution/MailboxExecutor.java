@@ -40,6 +40,7 @@ public interface MailboxExecutor extends Executor {
 	 * @throws RejectedExecutionException if this task cannot be accepted for execution, e.g. because the mailbox is
 	 *                                    quiesced or closed.
 	 */
+	@Override
 	void execute(@Nonnull Runnable command) throws RejectedExecutionException;
 
 	/**

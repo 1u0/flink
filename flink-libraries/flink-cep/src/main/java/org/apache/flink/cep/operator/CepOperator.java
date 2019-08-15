@@ -56,6 +56,7 @@ import org.apache.flink.streaming.api.operators.TimestampedCollector;
 import org.apache.flink.streaming.api.operators.Triggerable;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor;
 import org.apache.flink.util.OutputTag;
 import org.apache.flink.util.Preconditions;
 
@@ -159,8 +160,12 @@ public class CepOperator<IN, KEY, OUT>
 	}
 
 	@Override
-	public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<OUT>> output) {
-		super.setup(containingTask, config, output);
+	public void setup(
+			StreamTask<?, ?> containingTask,
+			StreamConfig config,
+			Output<StreamRecord<OUT>> output,
+			MailboxExecutor mailboxExecutor) {
+		super.setup(containingTask, config, output, mailboxExecutor);
 		this.cepRuntimeContext = new CepRuntimeContext(getRuntimeContext());
 		FunctionUtils.setFunctionRuntimeContext(getUserFunction(), this.cepRuntimeContext);
 	}

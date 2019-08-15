@@ -39,6 +39,7 @@ import org.apache.flink.streaming.runtime.tasks.OperatorChain;
 import org.apache.flink.streaming.runtime.tasks.SourceStreamTask;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.StreamTaskTest;
+import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -241,9 +242,13 @@ public class AbstractUdfStreamOperatorLifecycleTest {
 		}
 
 		@Override
-		public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<OUT>> output) {
+		public void setup(
+				StreamTask<?, ?> containingTask,
+				StreamConfig config,
+				Output<StreamRecord<OUT>> output,
+				MailboxExecutor mailboxExecutor) {
 			ACTUAL_ORDER_TRACKING.add("OPERATOR::setup");
-			super.setup(containingTask, config, output);
+			super.setup(containingTask, config, output, mailboxExecutor);
 			if (simulateCheckpointing) {
 				testCheckpointer = new Thread() {
 					@Override

@@ -26,7 +26,7 @@ import org.apache.flink.shaded.guava18.com.google.common.collect.Iterables;
 import org.junit.Assert;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -58,9 +58,10 @@ public class TestHarnessUtil {
 	 * Compare the two queues containing operator/task output by converting them to an array first.
 	 */
 	public static <T> void assertOutputEquals(String message, Queue<T> expected, Queue<T> actual) {
-		Assert.assertArrayEquals(message,
-				expected.toArray(),
-				actual.toArray());
+		Assert.assertEquals(
+				message,
+				new ArrayList<>(expected),
+				new ArrayList<>(actual));
 
 	}
 
@@ -73,7 +74,7 @@ public class TestHarnessUtil {
 		// first, compare only watermarks, their position should be deterministic
 		Iterator<Object> exIt = expected.iterator();
 		Iterator<Object> actIt = actual.iterator();
-		while (exIt.hasNext()) {
+		while (exIt.hasNext() && actIt.hasNext()) {
 			Object nextEx = exIt.next();
 			Object nextAct = actIt.next();
 			if (nextEx instanceof Watermark) {
@@ -96,13 +97,10 @@ public class TestHarnessUtil {
 			}
 		}
 
-		Object[] sortedExpected = expectedRecords.toArray();
-		Object[] sortedActual = actualRecords.toArray();
+		Collections.sort(expectedRecords, comparator);
+		Collections.sort(actualRecords, comparator);
 
-		Arrays.sort(sortedExpected, comparator);
-		Arrays.sort(sortedActual, comparator);
-
-		Assert.assertArrayEquals(message, sortedExpected, sortedActual);
+		Assert.assertEquals(message, expectedRecords, actualRecords);
 
 	}
 

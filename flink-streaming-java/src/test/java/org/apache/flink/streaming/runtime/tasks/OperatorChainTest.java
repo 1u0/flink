@@ -95,7 +95,8 @@ public class OperatorChainTest {
 			for (int i = 0; i < ops.length; i++) {
 				OneInputStreamOperator<T, T> op = operators[ops.length - i - 1];
 				if (op instanceof SetupableStreamOperator) {
-					((SetupableStreamOperator) op).setup(containingTask, cfg, lastWriter);
+					((SetupableStreamOperator) op).setup(containingTask, cfg, lastWriter,
+						containingTask.getMailboxExecutorFactory().apply(i));
 				}
 				lastWriter = new ChainingOutput<>(op, statusProvider, null);
 				ops[i] = op;

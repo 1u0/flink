@@ -18,7 +18,7 @@
 package org.apache.flink.table.planner.codegen
 
 import org.apache.flink.streaming.api.graph.StreamConfig
-import org.apache.flink.streaming.api.operators.{BoundedMultiInput, BoundedOneInput, InputSelectable, InputSelection, OneInputStreamOperator, Output, StreamOperator, TwoInputStreamOperator}
+import org.apache.flink.streaming.api.operators._
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord
 import org.apache.flink.streaming.runtime.tasks.StreamTask
 import org.apache.flink.table.planner.codegen.CodeGenUtils._
@@ -84,7 +84,7 @@ object OperatorCodeGenerator extends Logging {
             ${className[Output[_]]} output) throws Exception {
           this.references = references;
           ${ctx.reuseInitCode()}
-          this.setup(task, config, output);
+          this.setup(task, config, output, null);
         }
 
         @Override
@@ -197,7 +197,7 @@ object OperatorCodeGenerator extends Logging {
             ${className[Output[_]]} output) throws Exception {
           this.references = references;
           ${ctx.reuseInitCode()}
-          this.setup(task, config, output);
+          this.setup(task, config, output, null);
         }
 
         @Override

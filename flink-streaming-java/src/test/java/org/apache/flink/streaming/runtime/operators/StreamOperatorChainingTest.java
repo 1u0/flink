@@ -131,7 +131,8 @@ public class StreamOperatorChainingTest {
 			StreamTask<Integer, StreamMap<Integer, Integer>> mockTask = createMockTask(streamConfig, environment);
 			OperatorChain<Integer, StreamMap<Integer, Integer>> operatorChain = createOperatorChain(streamConfig, environment, mockTask);
 
-			headOperator.setup(mockTask, streamConfig, operatorChain.getChainEntryPoint());
+			headOperator.setup(mockTask, streamConfig, operatorChain.getChainEntryPoint(),
+				mockTask.getMailboxExecutorFactory().apply(streamConfig.getChainIndex()));
 
 			for (StreamOperator<?> operator : operatorChain.getAllOperators()) {
 				if (operator != null) {
@@ -252,7 +253,8 @@ public class StreamOperatorChainingTest {
 			StreamTask<Integer, StreamMap<Integer, Integer>> mockTask = createMockTask(streamConfig, environment);
 			OperatorChain<Integer, StreamMap<Integer, Integer>> operatorChain = createOperatorChain(streamConfig, environment, mockTask);
 
-			headOperator.setup(mockTask, streamConfig, operatorChain.getChainEntryPoint());
+			headOperator.setup(mockTask, streamConfig, operatorChain.getChainEntryPoint(),
+				mockTask.getMailboxExecutorFactory().apply(streamConfig.getChainIndex()));
 
 			for (StreamOperator<?> operator : operatorChain.getAllOperators()) {
 				if (operator != null) {

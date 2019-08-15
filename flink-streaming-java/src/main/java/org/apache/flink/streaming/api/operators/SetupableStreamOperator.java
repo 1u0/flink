@@ -21,6 +21,7 @@ import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor;
 
 /**
  * Stream operators can implement this interface if they need access to the context and the output.
@@ -37,5 +38,6 @@ public interface SetupableStreamOperator<OUT> {
 	/**
 	 * Initializes the operator. Sets access to the context and the output.
 	 */
-	void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<OUT>> output);
+	void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<OUT>> output,
+			MailboxExecutor mailboxExecutor);
 }

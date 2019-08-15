@@ -26,6 +26,7 @@ import org.apache.flink.streaming.api.functions.source.InputFormatSourceFunction
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -70,9 +71,9 @@ public class SimpleOperatorFactory<OUT> implements StreamOperatorFactory<OUT> {
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends StreamOperator<OUT>> T createStreamOperator(StreamTask<?, ?> containingTask,
-			StreamConfig config, Output<StreamRecord<OUT>> output) {
+		StreamConfig config, Output<StreamRecord<OUT>> output, MailboxExecutor mailboxExecutor) {
 		if (operator instanceof SetupableStreamOperator) {
-			((SetupableStreamOperator) operator).setup(containingTask, config, output);
+			((SetupableStreamOperator) operator).setup(containingTask, config, output, mailboxExecutor);
 		}
 		return (T) operator;
 	}

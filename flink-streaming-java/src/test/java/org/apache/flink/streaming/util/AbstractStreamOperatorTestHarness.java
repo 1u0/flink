@@ -63,6 +63,7 @@ import org.apache.flink.streaming.runtime.streamstatus.StreamStatus;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.TestProcessingTimeService;
+import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor;
 import org.apache.flink.util.OutputTag;
 import org.apache.flink.util.Preconditions;
 
@@ -77,6 +78,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.BiConsumer;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkState;
@@ -269,30 +271,37 @@ public class AbstractStreamOperatorTestHarness<OUT> implements AutoCloseable {
 	}
 
 	/**
-	 * Calls {@link SetupableStreamOperator#setup(StreamTask, StreamConfig, Output)} ()}.
+	 * Calls {@link SetupableStreamOperator#setup(StreamTask, StreamConfig, Output, org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor)} ()}.
 	 */
 	public void setup() {
 		setup(null);
 	}
 
 	/**
-	 * Calls {@link SetupableStreamOperator#setup(StreamTask, StreamConfig, Output)} ()}.
+	 * Calls {@link SetupableStreamOperator#setup(StreamTask, StreamConfig, Output, org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor)} ()}.
 	 */
 	public void setup(TypeSerializer<OUT> outputSerializer) {
 		if (!setupCalled) {
 			streamTaskStateInitializer =
 				createStreamTaskStateManager(environment, stateBackend, processingTimeService);
 			mockTask.setStreamTaskStateInitializer(streamTaskStateInitializer);
+
 			if (operator instanceof SetupableStreamOperator) {
-				((SetupableStreamOperator) operator).setup(mockTask, config, new MockOutput(outputSerializer));
+				((SetupableStreamOperator) operator).setup(mockTask, config, new MockOutput(outputSerializer),
+					getMailboxExecutorFactory().apply(config.getChainIndex()));
 			}
 			setupCalled = true;
+			this.mockTask.init();
 		}
+	}
+
+	private IntFunction<MailboxExecutor> getMailboxExecutorFactory() {
+		return mockTask.getMailboxExecutorFactory();
 	}
 
 	/**
 	 * Calls {@link org.apache.flink.streaming.api.operators.StreamOperator#initializeState()}.
-	 * Calls {@link org.apache.flink.streaming.api.operators.SetupableStreamOperator#setup(StreamTask, StreamConfig, Output)}
+	 * Calls {@link SetupableStreamOperator#setup(StreamTask, StreamConfig, Output, org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor)}
 	 * if it was not called before.
 	 *
 	 */
@@ -376,7 +385,7 @@ public class AbstractStreamOperatorTestHarness<OUT> implements AutoCloseable {
 
 	/**
 	 * Calls {@link org.apache.flink.streaming.api.operators.StreamOperator#initializeState()}.
-	 * Calls {@link org.apache.flink.streaming.api.operators.SetupableStreamOperator#setup(StreamTask, StreamConfig, Output)}
+	 * Calls {@link SetupableStreamOperator#setup(StreamTask, StreamConfig, Output, org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor)}
 	 * if it was not called before.
 	 *
 	 * @param jmOperatorStateHandles the primary state (owned by JM)
@@ -475,7 +484,7 @@ public class AbstractStreamOperatorTestHarness<OUT> implements AutoCloseable {
 
 	/**
 	 * Calls {@link StreamOperator#open()}. This also
-	 * calls {@link SetupableStreamOperator#setup(StreamTask, StreamConfig, Output)}
+	 * calls {@link SetupableStreamOperator#setup(StreamTask, StreamConfig, Output, org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor)}
 	 * if it was not called before.
 	 */
 	public void open() throws Exception {
@@ -527,6 +536,7 @@ public class AbstractStreamOperatorTestHarness<OUT> implements AutoCloseable {
 		if (internalEnvironment.isPresent()) {
 			internalEnvironment.get().close();
 		}
+		mockTask.cleanup();
 	}
 
 	public void setProcessingTime(long time) throws Exception {

@@ -62,6 +62,7 @@ import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor;
 import org.apache.flink.streaming.util.LatencyStats;
 import org.apache.flink.util.CloseableIterable;
 import org.apache.flink.util.ExceptionUtils;
@@ -170,7 +171,11 @@ public abstract class AbstractStreamOperator<OUT>
 	// ------------------------------------------------------------------------
 
 	@Override
-	public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<OUT>> output) {
+	public void setup(
+		StreamTask<?, ?> containingTask,
+		StreamConfig config,
+		Output<StreamRecord<OUT>> output,
+		MailboxExecutor mailboxExecutor) {
 		final Environment environment = containingTask.getEnvironment();
 		this.container = containingTask;
 		this.config = config;

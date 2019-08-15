@@ -225,7 +225,8 @@ public class StreamSourceOperatorLatencyMetricsTest extends TestLogger {
 				.setProcessingTimeService(timeProvider)
 				.build();
 
-			operator.setup(mockTask, cfg, (Output<StreamRecord<T>>) mock(Output.class));
+			operator.setup(mockTask, cfg, (Output<StreamRecord<T>>) mock(Output.class),
+				mockTask.getMailboxExecutor(cfg));
 		} catch (Exception e) {
 			e.printStackTrace();
 			fail(e.getMessage());

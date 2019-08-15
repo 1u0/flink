@@ -24,6 +24,7 @@ import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.graph.StreamGraph;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor;
 
 import java.io.Serializable;
 
@@ -39,7 +40,8 @@ public interface StreamOperatorFactory<OUT> extends Serializable {
 	 * Create the operator. Sets access to the context and the output.
 	 */
 	<T extends StreamOperator<OUT>> T createStreamOperator(
-			StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<OUT>> output);
+		StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<OUT>> output,
+		MailboxExecutor mailboxExecutor);
 
 	/**
 	 * Set the chaining strategy for operator factory.

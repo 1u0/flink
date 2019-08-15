@@ -32,6 +32,7 @@ import org.apache.flink.streaming.api.checkpoint.ListCheckpointed;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor;
 import org.apache.flink.streaming.util.functions.StreamingFunctionUtils;
 
 import static java.util.Objects.requireNonNull;
@@ -78,8 +79,12 @@ public abstract class AbstractUdfStreamOperator<OUT, F extends Function>
 	// ------------------------------------------------------------------------
 
 	@Override
-	public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<OUT>> output) {
-		super.setup(containingTask, config, output);
+	public void setup(
+			StreamTask<?, ?> containingTask,
+			StreamConfig config,
+			Output<StreamRecord<OUT>> output,
+			MailboxExecutor mailboxExecutor) {
+		super.setup(containingTask, config, output, mailboxExecutor);
 		FunctionUtils.setFunctionRuntimeContext(userFunction, getRuntimeContext());
 
 	}

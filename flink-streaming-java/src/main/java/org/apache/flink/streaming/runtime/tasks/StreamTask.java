@@ -79,6 +79,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntFunction;
 
 /**
  * Base class for all streaming tasks. A task is the unit of local processing that is deployed
@@ -496,10 +497,6 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		}
 	}
 
-	public MailboxExecutor getTaskMailboxExecutor() {
-		return mailboxProcessor.getMailboxExecutor();
-	}
-
 	public final boolean isRunning() {
 		return isRunning;
 	}
@@ -653,6 +650,10 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 
 	RecordWriterOutput<?>[] getStreamOutputs() {
 		return operatorChain.getStreamOutputs();
+	}
+
+	public IntFunction<MailboxExecutor> getMailboxExecutorFactory() {
+		return this.mailboxProcessor::getMailboxExecutor;
 	}
 
 	// ------------------------------------------------------------------------

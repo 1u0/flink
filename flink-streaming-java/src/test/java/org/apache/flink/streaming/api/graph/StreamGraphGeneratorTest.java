@@ -46,6 +46,7 @@ import org.apache.flink.streaming.runtime.partitioner.StreamPartitioner;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor;
 import org.apache.flink.streaming.util.EvenOddOutputSelector;
 import org.apache.flink.streaming.util.NoOpIntMap;
 
@@ -578,7 +579,12 @@ public class StreamGraphGeneratorTest {
 		}
 
 		@Override
-		public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<Integer>> output) {}
+		public void setup(
+				StreamTask<?, ?> containingTask,
+				StreamConfig config,
+				Output<StreamRecord<Integer>> output,
+				MailboxExecutor mailboxExecutor) {
+		}
 	}
 
 	private static class OutputTypeConfigurableOperationWithOneInput
