@@ -23,6 +23,9 @@ import org.apache.flink.streaming.runtime.tasks.mailbox.Mailbox;
 import javax.annotation.Nonnull;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
 
 /**
@@ -37,8 +40,22 @@ public interface MailboxExecutor extends Executor {
 	 * @throws RejectedExecutionException if this task cannot be accepted for execution, e.g. because the mailbox is
 	 *                                    quiesced or closed.
 	 */
-	@Override
 	void execute(@Nonnull Runnable command) throws RejectedExecutionException;
+
+	/**
+	 * Submits the given command for execution ain the future in the mailbox thread. nd returns a Future representing
+	 * that command. The Future's {@code get} method will return {@code null} upon <em>successful</em> completion.
+	 *
+	 * @param command the command to submit
+	 * @return a Future representing pending completion of the task
+	 * @throws RejectedExecutionException if this task cannot be accepted for execution, e.g. because the mailbox is
+	 * quiesced or closed.
+	 */
+	default @Nonnull Future<?> submit(@Nonnull Runnable command) {
+		FutureTask<?> future = new FutureTask<>(Executors.callable(command, null));
+		execute(future);
+		return future;
+	}
 
 	/**
 	 * This methods starts running the command at the head of the mailbox and is intended to be used by the mailbox
@@ -54,8 +71,8 @@ public interface MailboxExecutor extends Executor {
 	/**
 	 * This methods attempts to run the command at the head of the mailbox. This is intended to be used by the mailbox
 	 * thread to yield from a currently ongoing action to another command. The method returns true if a command was
-	 * found and executed or false if the mailbox was empty. Must only be called from the
-	 * mailbox thread to not violate the single-threaded execution model.
+	 * found and executed or false if the mailbox was empty. Must only be called from the mailbox thread to not violate
+	 * the single-threaded execution model.
 	 *
 	 * @return true on successful yielding to another command, false if there was no command to yield to.
 	 * @throws IllegalStateException if the mailbox is closed and can no longer supply runnables for yielding.
