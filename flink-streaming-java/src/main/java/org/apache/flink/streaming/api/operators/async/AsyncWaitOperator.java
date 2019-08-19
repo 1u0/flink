@@ -46,6 +46,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeCallback;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.mailbox.execution.MailboxExecutor;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.Preconditions;
 
@@ -113,6 +114,9 @@ public class AsyncWaitOperator<IN, OUT>
 	/** Thread running the emitter. */
 	private transient Thread emitterThread;
 
+	/** Mailbox executor used to yield while waiting for buffers to empty. */
+	private transient MailboxExecutor mailboxExecutor;
+
 	public AsyncWaitOperator(
 			AsyncFunction<IN, OUT> asyncFunction,
 			long timeout,
@@ -133,8 +137,12 @@ public class AsyncWaitOperator<IN, OUT>
 	}
 
 	@Override
-	public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<OUT>> output) {
-		super.setup(containingTask, config, output);
+	public void setup(
+			StreamTask<?, ?> containingTask,
+			StreamConfig config,
+			Output<StreamRecord<OUT>> output,
+			MailboxExecutor mailboxExecutor) {
+		super.setup(containingTask, config, output, mailboxExecutor);
 
 		this.checkpointingLock = getContainingTask().getCheckpointLock();
 
@@ -160,6 +168,8 @@ public class AsyncWaitOperator<IN, OUT>
 			default:
 				throw new IllegalStateException("Unknown async mode: " + outputMode + '.');
 		}
+
+		this.mailboxExecutor = mailboxExecutor;
 	}
 
 	@Override
@@ -167,7 +177,11 @@ public class AsyncWaitOperator<IN, OUT>
 		super.open();
 
 		// create the emitter
-		this.emitter = new Emitter<>(checkpointingLock, output, queue, this);
+		this.emitter = new Emitter<>(checkpointingLock,
+				this.mailboxExecutor,
+				output,
+				queue,
+				this);
 
 		// start the emitter thread
 		this.emitterThread = new Thread(emitter, "AsyncIO-Emitter-Thread (" + getOperatorName() + ')');
@@ -387,35 +401,36 @@ public class AsyncWaitOperator<IN, OUT>
 	 * Add the given stream element queue entry to the operator's stream element queue. This
 	 * operation blocks until the element has been added.
 	 *
-	 * <p>For that it tries to put the element into the queue and if not successful then it waits on
-	 * the checkpointing lock. The checkpointing lock is also used by the {@link Emitter} to output
-	 * elements. The emitter is also responsible for notifying this method if the queue has capacity
-	 * left again, by calling notifyAll on the checkpointing lock.
-	 *
 	 * @param streamElementQueueEntry to add to the operator's queue
 	 * @param <T> Type of the stream element queue entry's result
 	 * @throws InterruptedException if the current thread has been interrupted
 	 */
 	private <T> void addAsyncBufferEntry(StreamElementQueueEntry<T> streamElementQueueEntry) throws InterruptedException {
-		assert(Thread.holdsLock(checkpointingLock));
-
 		pendingStreamElementQueueEntry = streamElementQueueEntry;
 
-		while (!queue.tryPut(streamElementQueueEntry)) {
-			// we wait for the emitter to notify us if the queue has space left again
-			checkpointingLock.wait();
+		// remove when processor timers are migrated.
+		if (Thread.holdsLock(this.checkpointingLock)) {
+			while (!queue.tryPut(streamElementQueueEntry)) {
+				if (!mailboxExecutor.tryYield()) {
+					this.checkpointingLock.wait(1);
+				}
+			}
+		} else {
+			while (!queue.tryPut(streamElementQueueEntry)) {
+				mailboxExecutor.yield();
+			}
 		}
 
 		pendingStreamElementQueueEntry = null;
 	}
 
 	private void waitInFlightInputsFinished() throws InterruptedException {
-		assert(Thread.holdsLock(checkpointingLock));
+		assert (Thread.holdsLock(this.checkpointingLock));
 
 		while (!queue.isEmpty()) {
-			// wait for the emitter thread to output the remaining elements
-			// for that he needs the checkpointing lock and thus we have to free it
-			checkpointingLock.wait();
+			if (!mailboxExecutor.tryYield()) {
+				this.checkpointingLock.wait(1);
+			}
 		}
 	}
 

@@ -50,7 +50,6 @@ import org.apache.flink.streaming.api.functions.async.RichAsyncFunction;
 import org.apache.flink.streaming.api.functions.sink.DiscardingSink;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
-import org.apache.flink.streaming.api.operators.Output;
 import org.apache.flink.streaming.api.operators.async.queue.StreamElementQueue;
 import org.apache.flink.streaming.api.operators.async.queue.StreamElementQueueEntry;
 import org.apache.flink.streaming.api.operators.async.queue.StreamRecordQueueEntry;
@@ -58,9 +57,6 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OneInputStreamTask;
 import org.apache.flink.streaming.runtime.tasks.OneInputStreamTaskTestHarness;
-import org.apache.flink.streaming.runtime.tasks.StreamTask;
-import org.apache.flink.streaming.runtime.tasks.TestProcessingTimeService;
-import org.apache.flink.streaming.util.MockStreamConfig;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.TestHarnessUtil;
 import org.apache.flink.util.ExceptionUtils;
@@ -69,10 +65,8 @@ import org.apache.flink.util.TestLogger;
 
 import org.hamcrest.Matchers;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import javax.annotation.Nonnull;
 
@@ -82,6 +76,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -91,14 +86,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link AsyncWaitOperator}. These test that:
@@ -111,6 +103,8 @@ import static org.mockito.Mockito.when;
  * </ul>
  */
 public class AsyncWaitOperatorTest extends TestLogger {
+	@Rule
+	public ExecutorServiceRule executor = new ExecutorServiceRule(() -> Executors.newFixedThreadPool(1));
 
 	private static final long TIMEOUT = 1000L;
 
@@ -434,7 +428,7 @@ public class AsyncWaitOperatorTest extends TestLogger {
 	/**
 	 *	Tests that the AsyncWaitOperator works together with chaining.
 	 */
-	@Test
+	@Test(timeout = 1000000)
 	public void testOperatorChainWithProcessingTime() throws Exception {
 
 		JobVertex chainedVertex = createChainedVertex(false);
@@ -552,7 +546,7 @@ public class AsyncWaitOperatorTest extends TestLogger {
 		return jobGraph.getVerticesSortedTopologicallyFromSources().get(1);
 	}
 
-	@Test
+	@Test(timeout = 10000)
 	public void testStateSnapshotAndRestore() throws Exception {
 		final OneInputStreamTaskTestHarness<Integer, Integer> testHarness = new OneInputStreamTaskTestHarness<>(
 				OneInputStreamTask::new,
@@ -564,7 +558,7 @@ public class AsyncWaitOperatorTest extends TestLogger {
 		AsyncWaitOperator<Integer, Integer> operator = new AsyncWaitOperator<>(
 			new LazyAsyncFunction(),
 			TIMEOUT,
-			3,
+			4,
 			AsyncDataStream.OutputMode.ORDERED);
 
 		final StreamConfig streamConfig = testHarness.getStreamConfig();
@@ -747,75 +741,6 @@ public class AsyncWaitOperatorTest extends TestLogger {
 	}
 
 	/**
-	 * Test case for FLINK-5638: Tests that the async wait operator can be closed even if the
-	 * emitter is currently waiting on the checkpoint lock (e.g. in the case of two chained async
-	 * wait operators where the latter operator's queue is currently full).
-	 *
-	 * <p>Note that this test does not enforce the exact strict ordering because with the fix it is no
-	 * longer possible. However, it provokes the described situation without the fix.
-	 */
-	@Test(timeout = 10000L)
-	public void testClosingWithBlockedEmitter() throws Exception {
-		final Object lock = new Object();
-
-		ArgumentCaptor<Throwable> failureReason = ArgumentCaptor.forClass(Throwable.class);
-
-		MockEnvironment environment = createMockEnvironment();
-
-		StreamTask<?, ?> containingTask = mock(StreamTask.class);
-		when(containingTask.getEnvironment()).thenReturn(environment);
-		when(containingTask.getCheckpointLock()).thenReturn(lock);
-		when(containingTask.getProcessingTimeService()).thenReturn(new TestProcessingTimeService());
-
-		StreamConfig streamConfig = new MockStreamConfig();
-		streamConfig.setTypeSerializerIn1(IntSerializer.INSTANCE);
-
-		final OneShotLatch closingLatch = new OneShotLatch();
-		final OneShotLatch outputLatch = new OneShotLatch();
-
-		Output<StreamRecord<Integer>> output = mock(Output.class);
-		doAnswer(new Answer() {
-			@Override
-			public Object answer(InvocationOnMock invocation) throws Throwable {
-				assertTrue("Output should happen under the checkpoint lock.", Thread.currentThread().holdsLock(lock));
-
-				outputLatch.trigger();
-
-				// wait until we're in the closing method of the operator
-				while (!closingLatch.isTriggered()) {
-					lock.wait();
-				}
-
-				return null;
-			}
-		}).when(output).collect(any(StreamRecord.class));
-
-		AsyncWaitOperator<Integer, Integer> operator = new TestAsyncWaitOperator<>(
-			new MyAsyncFunction(),
-			1000L,
-			1,
-			AsyncDataStream.OutputMode.ORDERED,
-			closingLatch);
-
-		operator.setup(
-			containingTask,
-			streamConfig,
-			output);
-
-		operator.open();
-
-		synchronized (lock) {
-			operator.processElement(new StreamRecord<>(42));
-		}
-
-		outputLatch.await();
-
-		synchronized (lock) {
-			operator.close();
-		}
-	}
-
-	/**
 	 * Testing async wait operator which introduces a latch to synchronize the execution with the
 	 * emitter.
 	 */
@@ -839,7 +764,6 @@ public class AsyncWaitOperatorTest extends TestLogger {
 		@Override
 		public void close() throws Exception {
 			closingLatch.trigger();
-			checkpointingLock.notifyAll();
 			super.close();
 		}
 	}
@@ -1001,7 +925,9 @@ public class AsyncWaitOperatorTest extends TestLogger {
 	/**
 	 * Tests that the AysncWaitOperator can restart if checkpointed queue was full.
 	 *
-	 * <p>See FLINK-7949
+	 * <p>See FLINK-7949.
+	 *
+	 * <p>With mailbox approach, a checkpoint can only occur after an element has been enqueued to the buffer.
 	 */
 	@Test(timeout = 10000)
 	public void testRestartWithFullQueue() throws Exception {
@@ -1086,14 +1012,9 @@ public class AsyncWaitOperatorTest extends TestLogger {
 
 		final ConcurrentLinkedQueue<Object> output = recoverHarness.getOutput();
 
-		assertThat(output.size(), Matchers.equalTo(capacity + 1));
-
-		final ArrayList<Integer> outputElements = new ArrayList<>(capacity + 1);
-
-		for (int i = 0; i < capacity + 1; i++) {
-			StreamRecord<Integer> streamRecord = ((StreamRecord<Integer>) output.poll());
-			outputElements.add(streamRecord.getValue());
-		}
+		final List<Integer> outputElements = output.stream()
+			.map(r -> ((StreamRecord<Integer>) r).getValue())
+			.collect(Collectors.toList());
 
 		assertThat(outputElements, Matchers.equalTo(expectedOutput));
 	}
