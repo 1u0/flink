@@ -32,7 +32,6 @@ import org.apache.flink.runtime.checkpoint.CheckpointMetaData;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.runtime.checkpoint.TaskStateSnapshot;
-import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.io.network.api.CheckpointBarrier;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobgraph.JobVertex;
@@ -59,8 +58,6 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.OneInputStreamTask;
 import org.apache.flink.streaming.runtime.tasks.OneInputStreamTaskTestHarness;
-import org.apache.flink.streaming.runtime.tasks.ProcessingTimeCallback;
-import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.TestProcessingTimeService;
 import org.apache.flink.streaming.util.MockStreamConfig;
@@ -92,7 +89,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -100,12 +96,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -860,67 +852,31 @@ public class AsyncWaitOperatorTest extends TestLogger {
 	 */
 	@Test
 	public void testTimeoutCleanup() throws Exception {
-		final Object lock = new Object();
-
-		final long timeout = 100000L;
-		final long timestamp = 1L;
-
-		Environment environment = createMockEnvironment();
-
-		ScheduledFuture<?> scheduledFuture = mock(ScheduledFuture.class);
-
-		ProcessingTimeService processingTimeService = mock(ProcessingTimeService.class);
-		when(processingTimeService.getCurrentProcessingTime()).thenReturn(timestamp);
-		doReturn(scheduledFuture).when(processingTimeService).registerTimer(anyLong(), any(ProcessingTimeCallback.class));
-
-		StreamTask<?, ?> containingTask = mock(StreamTask.class);
-		when(containingTask.getEnvironment()).thenReturn(environment);
-		when(containingTask.getCheckpointLock()).thenReturn(lock);
-		when(containingTask.getProcessingTimeService()).thenReturn(processingTimeService);
-
-		StreamConfig streamConfig = new MockStreamConfig();
-		streamConfig.setTypeSerializerIn1(IntSerializer.INSTANCE);
-
-		Output<StreamRecord<Integer>> output = mock(Output.class);
-
-		AsyncWaitOperator<Integer, Integer> operator = new AsyncWaitOperator<>(
-			new AsyncFunction<Integer, Integer>() {
-				private static final long serialVersionUID = -3718276118074877073L;
-
-				@Override
-				public void asyncInvoke(Integer input, ResultFuture<Integer> resultFuture) throws Exception {
-					resultFuture.complete(Collections.singletonList(input));
-				}
-			},
-			timeout,
+		AsyncWaitOperator<Integer, Integer> asyncWaitOperator = new AsyncWaitOperator<>(
+			new MyAsyncFunction(),
+			TIMEOUT,
 			1,
 			AsyncDataStream.OutputMode.UNORDERED);
 
-		operator.setup(
-			containingTask,
-			streamConfig,
-			output);
+		OneInputStreamOperatorTestHarness<Integer, Integer> harness = new OneInputStreamOperatorTestHarness<>(
+			asyncWaitOperator,
+			IntSerializer.INSTANCE);
 
-		operator.open();
+		harness.open();
 
-		final StreamRecord<Integer> streamRecord = new StreamRecord<>(42, timestamp);
-
-		synchronized (lock) {
-			// processing an element will register a timeout
-			operator.processElement(streamRecord);
+		synchronized (harness.getCheckpointLock()) {
+			harness.processElement(42, 1L);
 		}
 
-		synchronized (lock) {
-			// closing the operator waits until all inputs have been processed
-			operator.close();
+		synchronized (harness.getCheckpointLock()) {
+			harness.close();
 		}
 
 		// check that we actually outputted the result of the single input
-		verify(output).collect(eq(streamRecord));
-		verify(processingTimeService).registerTimer(eq(processingTimeService.getCurrentProcessingTime() + timeout), any(ProcessingTimeCallback.class));
+		assertEquals(Arrays.asList(new StreamRecord(42 * 2, 1L)), new ArrayList<>(harness.getOutput()));
 
 		// check that we have cancelled our registered timeout
-		verify(scheduledFuture).cancel(eq(true));
+		assertEquals(0, harness.getProcessingTimeService().getNumActiveTimers());
 	}
 
 	/**
