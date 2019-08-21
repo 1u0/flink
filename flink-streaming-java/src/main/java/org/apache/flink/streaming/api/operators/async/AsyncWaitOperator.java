@@ -406,19 +406,11 @@ public class AsyncWaitOperator<IN, OUT>
 	 * @throws InterruptedException if the current thread has been interrupted
 	 */
 	private <T> void addAsyncBufferEntry(StreamElementQueueEntry<T> streamElementQueueEntry) throws InterruptedException {
+		assert (Thread.holdsLock(this.checkpointingLock));
 		pendingStreamElementQueueEntry = streamElementQueueEntry;
 
-		// remove when processor timers are migrated.
-		if (Thread.holdsLock(this.checkpointingLock)) {
-			while (!queue.tryPut(streamElementQueueEntry)) {
-				if (!mailboxExecutor.tryYield()) {
-					this.checkpointingLock.wait(1);
-				}
-			}
-		} else {
-			while (!queue.tryPut(streamElementQueueEntry)) {
-				mailboxExecutor.yield();
-			}
+		while (!queue.tryPut(streamElementQueueEntry)) {
+			mailboxExecutor.yield();
 		}
 
 		pendingStreamElementQueueEntry = null;
@@ -428,9 +420,7 @@ public class AsyncWaitOperator<IN, OUT>
 		assert (Thread.holdsLock(this.checkpointingLock));
 
 		while (!queue.isEmpty()) {
-			if (!mailboxExecutor.tryYield()) {
-				this.checkpointingLock.wait(1);
-			}
+			mailboxExecutor.yield();
 		}
 	}
 
